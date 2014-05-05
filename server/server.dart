@@ -57,7 +57,7 @@ class Post {
 
   }
 
-  @app.Route('/save', methods: const [app.POST])
+  @app.Route('/add', methods: const [app.POST])
   add(@app.Attr() Db dbConn, @app.Body(app.JSON) Map post) {
     logger.info("Guestbook : add post");
 
