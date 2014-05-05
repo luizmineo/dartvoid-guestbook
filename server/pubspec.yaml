@@ -1,5 +1,5 @@
-name: vane_guestbook
+name: bloodless_guestbook
 description: A sample application
 dependencies:
-  vane: any
-  
+  bloodless: any
+  mongo_dart: any
