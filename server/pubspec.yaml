@@ -1,5 +1,5 @@
 name: bloodless_guestbook
 description: A sample application
 dependencies:
-  bloodless: any
+  redstone: any
   mongo_dart: any
