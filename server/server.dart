@@ -32,7 +32,7 @@ createConn(DbConnManager connManager) {
     app.chain.next(() => connManager.close(dbConn));
   }).catchError((e) {
     app.chain.interrupt(statusCode: HttpStatus.INTERNAL_SERVER_ERROR, 
-        response: {"error": "DATABASE_UNAVAILABLE"});
+        responseValue: {"error": "DATABASE_UNAVAILABLE"});
   });
 }
 
@@ -104,7 +104,6 @@ main() {
   var portEnv = Platform.environment['PORT'];
 
   app.start(address: '127.0.0.1', 
-            port: portEnv != null ? int.parse(portEnv) : 8080, 
-            staticDir: null);
+            port: portEnv != null ? int.parse(portEnv) : 8080);
 
 }
