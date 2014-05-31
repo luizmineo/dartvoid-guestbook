@@ -1,4 +1,4 @@
-name: vane_guestbook
+name: redstone_guestbook
 description: A sample application
 dependencies:
   browser: any

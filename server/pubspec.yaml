@@ -1,5 +1,6 @@
-name: bloodless_guestbook
+name: redstone_guestbook
 description: A sample application
 dependencies:
   redstone: '>=0.5.0 <1.0.0'
   mongo_dart: any
+  connection_pool: any

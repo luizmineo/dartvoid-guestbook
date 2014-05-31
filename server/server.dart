@@ -3,36 +3,41 @@ import 'dart:async';
 
 import 'package:redstone/server.dart' as app;
 import 'package:mongo_dart/mongo_dart.dart';
+import 'package:connection_pool/connection_pool.dart';
 import 'package:di/di.dart';
 import 'package:logging/logging.dart';
 
 var logger = new Logger("guestbook");
 
-class DbConnManager {
+class MongoDbPool extends ConnectionPool<Db> {
 
   String uri;
 
-  DbConnManager(String this.uri);
+  MongoDbPool(String this.uri, int poolSize) : super(poolSize);
 
-  Future<Db> connect() {
-    Db conn = new Db(uri);
-    return conn.open().then((_) => conn);
-  }
-
-  void close(Db conn) {
+  @override
+  void closeConnection(Db conn) {
     conn.close();
   }
 
+  @override
+  Future<Db> openNewConnection() {
+    var conn = new Db(uri);
+    return conn.open().then((_) => conn);
+  }
 }
 
-@app.Interceptor(r'/.+')
-createConn(DbConnManager connManager) {
-  connManager.connect().then((Db dbConn) {
-    app.request.attributes['dbConn'] = dbConn;
-    app.chain.next(() => connManager.close(dbConn));
-  }).catchError((e) {
-    app.chain.interrupt(statusCode: HttpStatus.INTERNAL_SERVER_ERROR, 
-        responseValue: {"error": "DATABASE_UNAVAILABLE"});
+@app.Interceptor(r'/services/.+')
+dbInterceptor(MongoDbPool pool) {
+  pool.getConnection().then((managedConnection) {
+    app.request.attributes["conn"] = managedConnection.conn;
+    app.chain.next(() {
+      if (app.chain.error is ConnectionException) {
+        pool.releaseConnection(managedConnection, markAsInvalid: true);
+      } else {
+        pool.releaseConnection(managedConnection);
+      }
+    });
   });
 }
 
@@ -42,10 +47,10 @@ class Post {
   final String collectionName = "posts";
 
   @app.Route('/list')
-  list(@app.Attr() Db dbConn) {
+  list(@app.Attr() Db conn) {
     logger.info("Guestbook : list posts");
 
-    var coll = dbConn.collection(collectionName);
+    var coll = conn.collection(collectionName);
     return coll.find().toList().then((data) {
       logger.info("Got ${data.length} post(s)");
       logger.info("${data}");
@@ -58,10 +63,10 @@ class Post {
   }
 
   @app.Route('/add', methods: const [app.POST])
-  add(@app.Attr() Db dbConn, @app.Body(app.JSON) Map post) {
+  add(@app.Attr() Db conn, @app.Body(app.JSON) Map post) {
     logger.info("Guestbook : add post");
 
-    var coll = dbConn.collection(collectionName);
+    var coll = conn.collection(collectionName);
     return coll.insert({"name": post["name"], "message": post["message"]}).then((data) {
       logger.info("Added post: $post");
       logger.info("${data}");
@@ -73,10 +78,10 @@ class Post {
   }
 
   @app.Route('/delete', methods: const [app.DELETE])
-  delete(@app.Attr() Db dbConn) {
+  delete(@app.Attr() Db conn) {
     logger.info("Guestbook : delete post");
 
-    var coll = dbConn.collection(collectionName);
+    var coll = conn.collection(collectionName);
     return coll.remove().then((data) {
       logger.info("Removed ${data["n"]} posts");
       logger.info("${data}");
@@ -98,8 +103,10 @@ main() {
     dbUri = "mongodb://localhost/guestbook";
   }
 
+  var poolSize = 3;
+
   app.addModule(new Module()
-      ..bind(DbConnManager, toValue: new DbConnManager(dbUri)));
+      ..bind(MongoDbPool, toValue: new MongoDbPool(dbUri, poolSize)));
 
   var portEnv = Platform.environment['PORT'];
 
